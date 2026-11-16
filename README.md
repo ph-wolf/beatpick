@@ -1,10 +1,12 @@
 # beatpick
 
-**Find music that keeps up with your rhythm.**
+**Turn your Apple Music library into workout playlists that match your rhythm.**
 
-Finding music for a run or a cycling session sounds simple: pick tracks with the right BPM. But a single tempo value rarely tells the whole story. A track might have a long ambient intro, a slow breakdown, or only a short section that matches your pace. Albums can also contain the same recording several times.
+Whether you are running, cycling, or working out, the right beat can help you keep your pace. But finding music at that tempo starts with a more basic problem: the BPM field in your local music files may be empty. Without tempo metadata, filtering your Apple Music library by BPM is not much help.
 
-beatpick selects local Apple Music tracks by how much of their playing time matches your chosen tempo range. Preview the results, optionally write BPM values and duplicate markers, and use those fields in a Smart Playlist for your next workout.
+beatpick analyses your local audio to find tracks that fit your chosen tempo range and can write the results to Apple Music. It also looks beyond a single BPM value: a long ambient intro, a slow breakdown, or a change in tempo can make a track less suitable for a steady workout. You choose how much of each track must match your target range.
+
+Preview the results, optionally write BPM values, and use them to build a Smart Playlist in Apple Music. Optional audio-based duplicate detection helps you avoid repeated recordings across your selection. Sync the playlist to your supported devices, and take your rhythm with you.
 
 ```text
 Local audio → beatpick CLI → optional AI skill → Apple Music Smart Playlist → devices
