@@ -1,0 +1,118 @@
+"""Configuration and command-line orchestration."""
+import argparse
+import contextlib
+import fcntl
+import hashlib
+import json
+import re
+import subprocess
+import sys
+import audio_io
+from pathlib import Path
+import yaml
+from settings import VALUES
+import refresh
+import metadata
+
+
+def matches(rule, row):
+    if len(rule) == 1:
+        if 'all' in rule:
+            return all(matches(r, row) for r in rule['all'])
+        if 'any' in rule:
+            return any(matches(r, row) for r in rule['any'])
+        if 'not' in rule:
+            return not matches(rule['not'], row)
+    field = rule['field']
+    if field not in ('genre', 'album', 'artist', 'title'):
+        raise ValueError('Unsupported selection field: ' + field)
+    value = str(row.get(field, ''))
+    ops = set(rule) - {'field'}
+    if len(ops) != 1:
+        raise ValueError('A selection leaf requires exactly one operator')
+    op = ops.pop()
+    target = str(rule[op])
+    if op == 'equals':
+        return value.casefold() == target.casefold()
+    if op == 'contains':
+        return target.casefold() in value.casefold()
+    if op == 'regex':
+        return re.search(target, value, re.I) is not None
+    raise ValueError('Unknown selection operator: ' + op)
+
+
+def path(value, base):
+    result = Path(value).expanduser()
+    return (result if result.is_absolute() else base / result).resolve()
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Select Apple Music tracks by audio tempo coverage.')
+    parser.add_argument('command', choices=['run', 'apply'])
+    parser.add_argument('--config', type=Path)
+    for key in VALUES:
+        parser.add_argument('--' + key.replace('_', '-'), type=float)
+    for key in ('state-dir', 'media-root', 'select'):
+        parser.add_argument('--' + key)
+    for key in ('write-bpm', 'duplicates'):
+        parser.add_argument('--' + key, action=argparse.BooleanOptionalAction, default=None)
+    for key in ('all', 'refresh', 'apply', 'json'):
+        parser.add_argument('--' + key, action='store_true')
+    args = parser.parse_args()
+    try:
+        config = yaml.safe_load(args.config.read_text()) or {} if args.config else {}
+        base = args.config.resolve().parent if args.config else Path.cwd()
+        for key in VALUES:
+            VALUES[key] = getattr(args, key) if getattr(args, key) is not None else config.get('analysis', {}).get(key, VALUES[key])
+        if not 90 <= VALUES['bpm_min'] <= VALUES['bpm_max'] <= 200:
+            raise ValueError('BPM bounds must be between 90 and 200')
+        if not 0 < VALUES['coverage_percent'] <= 100 or min(VALUES.values()) <= 0:
+            raise ValueError('Coverage must be in (0, 100] and durations must be positive')
+        if VALUES['context_seconds'] < max(4, VALUES['window_seconds']):
+            raise ValueError('Context must be at least four seconds and at least the window size')
+        state = path(args.state_dir or config.get('state_dir', './data'), Path.cwd() if args.state_dir else base)
+        state.mkdir(parents=True, exist_ok=True)
+        (state / 'tmp').mkdir(exist_ok=True)
+        audio_io.SCRATCH_DIR = str(state / 'tmp')
+        root = path(args.media_root or config.get('library', {}).get('media_root', '~/Music'), Path.cwd() if args.media_root else base)
+        rule = yaml.safe_load(args.select) if args.select else config.get('library', {}).get('select')
+        if not rule and not args.all:
+            raise ValueError('Specify a selection rule or --all')
+        if rule:
+            matches(rule, {})
+        write = args.write_bpm if args.write_bpm is not None else config.get('write_bpm', False)
+        duplicates = args.duplicates if args.duplicates is not None else config.get('duplicates', {}).get('enabled', True)
+        effective = dict(analysis=VALUES, root=str(root), select=rule, write_bpm=write, duplicates=duplicates)
+        signature = hashlib.sha256(json.dumps(effective, sort_keys=True).encode()).hexdigest()
+        with (state / '.lock').open('w') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            if args.command == 'run':
+                (state / 'metadata-plan.json').unlink(missing_ok=True)
+                script = Path(__file__).with_name('inventory.js')
+                rows = json.loads(subprocess.check_output(['osascript', '-l', 'JavaScript', str(script)], text=True))
+                rows = [r for r in rows if Path(r['path']).resolve().is_relative_to(root) and (not rule or matches(rule, r))]
+                if not rows:
+                    raise ValueError('No local tracks match the selection')
+                old_inventory = refresh.inventory
+                refresh.inventory = lambda _: rows
+                refresh.sys = sys
+                old = sys.argv
+                sys.argv = ['refresh', '--state-dir', str(state), '--input-tsv', 'unused'] + (['--refresh'] if args.refresh else [])
+                try:
+                    with contextlib.redirect_stdout(sys.stderr):
+                        refresh.main()
+                finally:
+                    sys.argv = old
+                    refresh.inventory = old_inventory
+                result = metadata.plan(state, write, duplicates)
+                result['config_signature'] = signature
+                refresh.write_json(state / 'metadata-plan.json', result)
+            if args.command == 'apply' or args.apply:
+                plan = json.loads((state / 'metadata-plan.json').read_text())
+                if plan.get('config_signature') != signature:
+                    raise ValueError('Configuration changed; create a new preview')
+                result = metadata.apply(state)
+            print(json.dumps(result, indent=2) if args.json else f"Completed {args.command}. Results: {state}")
+    except Exception as exc:
+        print(f'beatpick: {exc}', file=sys.stderr)
+        raise SystemExit(1) from exc
