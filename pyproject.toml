@@ -10,5 +10,8 @@ dependencies = ["numpy", "scipy", "PyYAML"]
 license = "MIT"
 [project.scripts]
 beatpick = "beatpick.cli:main"
+[tool.setuptools]
+packages = ["beatpick"]
+
 [tool.setuptools.package-data]
 beatpick = ["*.js", "*.applescript"]
