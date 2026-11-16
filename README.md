@@ -84,9 +84,73 @@ With an Apple Music subscription, enable Sync Library on your Mac and supported 
 
 See Apple's [Sync Library instructions](https://support.apple.com/en-ca/118285) and [library synchronization limitations](https://support.apple.com/en-lamr/guide/music/musa3dd5209/mac). beatpick does not perform synchronization itself.
 
-## Optional AI skill
+## Optional AI skill: installation and usage
 
-An AI skill can invoke these same commands, explain new and removed matches, and summarize the preview before applying an authorized update. The CLI owns analysis and verification, so it also works without AI. No skill integration is installed by this repository.
+The portable [skill/SKILL.md](skill/SKILL.md) lets Codex or Claude Code operate the CLI and explain results. It contains generic instructions, no personal library data. The CLI owns the analysis; no separate model API integration is required by beatpick.
+
+Install the CLI first and prepare your personal `config.yaml`. Use a local agent session on the Mac that has access to Music and your audio files. A cloud session does not automatically have access to that library.
+
+### Install for Codex
+
+From the root of your beatpick checkout, copy the skill into your personal skills directory:
+
+```sh
+mkdir -p ~/.agents/skills/beatpick
+cp skill/SKILL.md ~/.agents/skills/beatpick/SKILL.md
+```
+
+Start a new session, then invoke it with `$beatpick`. See the official [Codex skill documentation](https://developers.openai.com/codex/skills).
+
+### Install for Claude Code
+
+From the same checkout:
+
+```sh
+mkdir -p ~/.claude/skills/beatpick
+cp skill/SKILL.md ~/.claude/skills/beatpick/SKILL.md
+```
+
+Start a new session and invoke `/beatpick`. See the official [Claude Code skill documentation](https://code.claude.com/docs/en/skills).
+
+These commands copy the skill; repeat the copy after updating the repository. They replace an existing skill with the same name, so preserve any custom version first. Installing the skill does not install the CLI or change your configuration. No `AGENTS.md` or `CLAUDE.md` is needed.
+
+### Example prompts
+
+For Codex, use `$beatpick`; for Claude Code, replace it with `/beatpick`. Provide your actual configuration path in place of the example placeholder.
+
+**Preview only:**
+
+```text
+$beatpick Use /path/to/config.yaml to analyse my selected tracks.
+Explain new matches, removed matches, and proposed metadata changes.
+Do not change Apple Music metadata.
+```
+
+**Try a different tempo without editing the configuration:**
+
+```text
+$beatpick Preview tracks at 170–180 BPM with at least 60% coverage,
+using /path/to/config.yaml. Keep its selection unchanged.
+Do not edit the configuration or apply metadata changes.
+```
+
+**Update BPM, leaving comments untouched:**
+
+```text
+$beatpick Using /path/to/config.yaml, analyse the selected tracks,
+inspect the preview, and apply BPM updates only.
+Leave all comments unchanged and report the verified changes.
+```
+
+**Apply the configured BPM and duplicate settings:**
+
+```text
+$beatpick Using /path/to/config.yaml, refresh the analysis, inspect
+its preview, and apply the configured metadata updates if analysis
+succeeds. Explain duplicate groups and any remaining issues.
+```
+
+Preview requests never authorize Music writes. Explicit update requests authorize the corresponding apply step. The skill does not create Smart Playlists or sync devices; follow the playlist instructions above after applying results.
 
 ## Architecture and method
 
