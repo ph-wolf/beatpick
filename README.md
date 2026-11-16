@@ -1,6 +1,6 @@
 # beatpick
 
-**Turn your Apple Music library into workout playlists that match your rhythm.**
+**Find your rhythm. AI-assisted playlists for Apple Music.**
 
 Whether you are running, cycling, or working out, the right beat can help you keep your pace. But finding music at that tempo starts with a more basic problem: the BPM field in your local music files may be empty. Without tempo metadata, filtering your Apple Music library by BPM is not much help.
 
