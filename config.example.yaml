@@ -1,19 +1,77 @@
+# All scalar settings have defaults except the track selection.
+# Optional means you may OMIT the key; it does not mean leave its value blank.
+# A blank YAML value is null, not a request to use the default.
+# Use explicit numbers, paths and true/false values as documented below.
+# If you omit a whole section, remove its heading too; do not leave "analysis:" blank.
+# CLI options override this file. Load it explicitly with --config config.yaml.
+
+# Optional section: omit it entirely to use the analysis defaults below.
 analysis:
+  # Optional; default 165 BPM. Blank/null is invalid.
+  # Lower target bound; the detector includes a 0.5 BPM rounding tolerance.
+  # Bounds must satisfy 90 <= bpm_min <= bpm_max <= 200.
   bpm_min: 165
+
+  # Optional; default 185 BPM. Blank/null is invalid.
+  # Inclusive upper target bound, without upward rounding tolerance.
+  # Omitting the bounds uses defaults; it does NOT select all tempos.
   bpm_max: 185
+
+  # Optional; default 50 percent. Blank/null is invalid. Valid: > 0 to 100.
+  # Minimum share of the ENTIRE track confirmed inside the target BPM range.
+  # Separate matching sections are added; silence and uncertainty stay in the total.
   coverage_percent: 50
+
+  # Optional; default 4 seconds. Blank/null is invalid. Must be positive.
+  # Playback time represented by each tempo decision, NOT the audio context length.
+  # The last window is shortened to the remaining track duration.
   window_seconds: 4
+
+  # Optional; default 12 seconds. Blank/null is invalid.
+  # Audio examined around each counted window's midpoint, including neighbours.
+  # Must be >= 4 seconds and >= window_seconds. Contexts overlap, counted time does not.
+  # Example: count 20-24 s using audio from 16-28 s; see the README diagram.
   context_seconds: 12
+
+  # Optional; default 720 seconds (12 minutes). Blank/null is invalid. Must be positive.
+  # Longer tracks are skipped before decoding; exactly this duration is allowed.
   max_track_seconds: 720
+
+# Optional section only when supplying the selection via --select or --all.
 library:
+  # Optional; default ~/Music. Blank/null is invalid.
+  # Restricts local file paths to this folder; does not open another Music library.
+  # ~ expands to your home; relative paths are relative to this config file.
   media_root: ~/Music
+
+  # Required unless a selector is supplied via --select, or --all is explicit.
+  # Omitted/blank/null means no selector; it is accepted ONLY with --all.
+  # --all alone does not override a selector still present here: remove it first.
+  # Fictional examples: replace with your own rules. Text matching ignores case.
+  # Combine leaves with all, any, not. Fields: genre, album, artist, title.
+  # Leaf operators: equals, contains, regex. Each leaf needs one field and operator.
   select:
     any:
       - field: album
         contains: Neon Horizon
       - field: artist
         equals: The Lunar Echoes
+
+# Optional; default ./data. Blank/null is invalid.
+# Persistent JSON caches, previews, results and backups live here; keep between runs.
+# Relative to this config file. Decoder scratch files use its tmp/ subdirectory.
 state_dir: ./data
+
+# Optional; default false. Use true/false; do not use blank/null.
+# Current parser treats null as disabled, NOT as a request for the default.
+# Enables BPM changes for qualifying tracks, but only during apply / run --apply.
+# Does not control duplicate comments; those are independently enabled below.
 write_bpm: false
+
+# Optional section: omit entirely for enabled: true; do not leave the heading blank.
 duplicates:
+  # Optional; default true. Use true/false; do not use blank/null.
+  # Current parser treats null as disabled, NOT as the default true.
+  # Enables audio duplicate comparison and comment maintenance during apply.
+  # false leaves ALL existing comments unchanged; it does not remove old markers.
   enabled: true
