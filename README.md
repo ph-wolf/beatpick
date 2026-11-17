@@ -23,9 +23,9 @@ brew install ph-wolf/tap/beatpick
 beatpick --version
 ```
 
-### Automatic first-run setup (development version)
+### Automatic first-run setup
 
-The first-run setup below is implemented on `main` and will ship in the next release. The currently published Homebrew version `0.2.0` still uses [the explicit configuration setup documented with that release](https://github.com/ph-wolf/beatpick/blob/v0.2.0/README.md#install). No separate `init` command is required by the new workflow.
+Since version `0.2.1`, setup happens automatically during the first interactive run. No separate `init` command, manual directory creation, or config copying is needed.
 
 ```sh
 beatpick run
