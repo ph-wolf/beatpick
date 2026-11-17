@@ -43,7 +43,7 @@ class ConfigurationTests(unittest.TestCase):
                 self.assertTrue((root / 'data/metadata-plan.json').exists())
 
     def test_selection_required_before_music_access(self):
-        with tempfile.TemporaryDirectory() as temp, patch('sys.argv', ['beatpick', 'run', '--state-dir', temp]), patch.object(cli.subprocess, 'check_output') as music:
+        with tempfile.TemporaryDirectory() as temp, patch('sys.argv', ['beatpick', 'run', '--no-config', '--state-dir', temp]), patch.object(cli.subprocess, 'check_output') as music:
             with self.assertRaises(SystemExit):
                 cli.main()
             music.assert_not_called()

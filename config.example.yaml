@@ -3,7 +3,9 @@
 # A blank YAML value is null, not a request to use the default.
 # Use explicit numbers, paths and true/false values as documented below.
 # If you omit a whole section, remove its heading too; do not leave "analysis:" blank.
-# CLI options override this file. Load it explicitly with --config config.yaml.
+# CLI options override the selected file. Discovery: ./config.yaml, then ~/.beatpick/config.yaml.
+# --config selects an explicit file; --no-config skips discovery and setup.
+# Interactive beatpick run creates a personal config and continues if none exists.
 
 # Optional section: omit it entirely to use the analysis defaults below.
 analysis:
@@ -37,16 +39,18 @@ analysis:
   # Longer tracks are skipped before decoding; exactly this duration is allowed.
   max_track_seconds: 720
 
-# Optional section only when supplying the selection via --select or --all.
+# Optional section when supplying the selection via --select or --all.
 library:
   # Optional; default ~/Music. Blank/null is invalid.
   # Restricts local file paths to this folder; does not open another Music library.
   # ~ expands to your home; relative paths are relative to this config file.
   media_root: ~/Music
 
-  # Required unless a selector is supplied via --select, or --all is explicit.
-  # Omitted/blank/null means no selector; it is accepted ONLY with --all.
-  # --all alone does not override a selector still present here: remove it first.
+  # Required unless using --select, explicit --all, or library.all: true.
+  # Omitted/blank/null means no selector; requires --all or library.all: true.
+  # --all and library.all do not override a selector still present: remove it first.
+  # To persist an all-tracks choice, remove select and add: all: true
+  # all is optional (default false) and must be true/false, not blank/null.
   # Fictional examples: replace with your own rules. Text matching ignores case.
   # Combine leaves with all, any, not. Fields: genre, album, artist, title.
   # Leaf operators: equals, contains, regex. Each leaf needs one field and operator.

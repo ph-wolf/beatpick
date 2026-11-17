@@ -14,6 +14,7 @@ import yaml
 from settings import VALUES
 import refresh
 import metadata
+from configuration import DEFAULT_ANALYSIS, locate
 
 
 def matches(rule, row):
@@ -51,7 +52,9 @@ def main():
     parser = argparse.ArgumentParser(description='Select Apple Music tracks by audio tempo coverage.')
     parser.add_argument('--version', action='version', version='beatpick ' + version('beatpick'))
     parser.add_argument('command', choices=['run', 'apply'])
-    parser.add_argument('--config', type=Path)
+    config_options = parser.add_mutually_exclusive_group()
+    config_options.add_argument('--config', type=Path)
+    config_options.add_argument('--no-config', action='store_true', help='Ignore automatic configuration discovery; use CLI settings only')
     for key in VALUES:
         parser.add_argument('--' + key.replace('_', '-'), type=float)
     for key in ('state-dir', 'media-root', 'select', 'duplicate-marker'):
@@ -62,10 +65,11 @@ def main():
         parser.add_argument('--' + key, action='store_true')
     args = parser.parse_args()
     try:
+        args.config = locate(args)
         config = yaml.safe_load(args.config.read_text()) or {} if args.config else {}
         base = args.config.resolve().parent if args.config else Path.cwd()
         for key in VALUES:
-            VALUES[key] = getattr(args, key) if getattr(args, key) is not None else config.get('analysis', {}).get(key, VALUES[key])
+            VALUES[key] = getattr(args, key) if getattr(args, key) is not None else config.get('analysis', {}).get(key, DEFAULT_ANALYSIS[key])
         if not 90 <= VALUES['bpm_min'] <= VALUES['bpm_max'] <= 200:
             raise ValueError('BPM bounds must be between 90 and 200')
         if not 0 < VALUES['coverage_percent'] <= 100 or min(VALUES.values()) <= 0:
@@ -73,12 +77,12 @@ def main():
         if VALUES['context_seconds'] < max(4, VALUES['window_seconds']):
             raise ValueError('Context must be at least four seconds and at least the window size')
         state = path(args.state_dir or config.get('state_dir', './data'), Path.cwd() if args.state_dir else base)
-        state.mkdir(parents=True, exist_ok=True)
-        (state / 'tmp').mkdir(exist_ok=True)
-        audio_io.SCRATCH_DIR = str(state / 'tmp')
         root = path(args.media_root or config.get('library', {}).get('media_root', '~/Music'), Path.cwd() if args.media_root else base)
         rule = yaml.safe_load(args.select) if args.select else config.get('library', {}).get('select')
-        if not rule and not args.all:
+        include_all = args.all or config.get('library', {}).get('all', False)
+        if not isinstance(include_all, bool):
+            raise ValueError('library.all must be true or false')
+        if not rule and not include_all:
             raise ValueError('Specify a selection rule or --all')
         if rule:
             matches(rule, {})
@@ -87,6 +91,9 @@ def main():
         marker = metadata.validate_marker(args.duplicate_marker if args.duplicate_marker is not None else config.get('duplicates', {}).get('marker', metadata.MARKER))
         effective = dict(marker=marker, analysis=VALUES, root=str(root), select=rule, write_bpm=write, duplicates=duplicates)
         signature = hashlib.sha256(json.dumps(effective, sort_keys=True).encode()).hexdigest()
+        state.mkdir(parents=True, exist_ok=True)
+        (state / 'tmp').mkdir(exist_ok=True)
+        audio_io.SCRATCH_DIR = str(state / 'tmp')
         with (state / '.lock').open('w') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             if args.command == 'run':
@@ -116,6 +123,9 @@ def main():
                     raise ValueError('Configuration changed; create a new preview')
                 result = metadata.apply(state)
             print(json.dumps(result, indent=2) if args.json else f"Completed {args.command}. Results: {state}")
+    except (EOFError, KeyboardInterrupt):
+        print('beatpick: Interrupted.', file=sys.stderr)
+        raise SystemExit(130) from None
     except Exception as exc:
         print(f'beatpick: {exc}', file=sys.stderr)
         raise SystemExit(1) from exc

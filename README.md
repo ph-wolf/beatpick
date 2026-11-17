@@ -21,11 +21,28 @@ Requires macOS and a local Apple Music library with readable audio files. DRM-pr
 ```sh
 brew install ph-wolf/tap/beatpick
 beatpick --version
-mkdir -p ~/.beatpick
-cp "$(brew --prefix beatpick)/share/beatpick/config.example.yaml" ~/.beatpick/config.yaml
 ```
 
-Edit `~/.beatpick/config.yaml` to match your actual music; the example artists and albums are fictional. With `state_dir: ./data`, results live under `~/.beatpick/data/`. Your configuration and state are independent of both the development checkout and Homebrew upgrades. Do not overwrite an existing personal config with the example.
+### Automatic first-run setup (development version)
+
+The first-run setup below is implemented on `main` and will ship in the next release. The currently published Homebrew version `0.2.0` still uses [the explicit configuration setup documented with that release](https://github.com/ph-wolf/beatpick/blob/v0.2.0/README.md#install). No separate `init` command is required by the new workflow.
+
+```sh
+beatpick run
+```
+
+If no configuration exists, an interactive `run` asks for your local music folder, genre/album/artist selection (or explicitly all local tracks), target BPM range, minimum coverage, and whether to prepare BPM and duplicate-comment updates. It creates a commented `~/.beatpick/config.yaml` and **continues directly with the analysis**. It does not merely create a file and stop. Nothing is written to Music unless you explicitly request `apply` or `run --apply`.
+
+You do not need to create directories or copy configuration files. Existing files are never overwritten; cancelling setup before it finishes leaves no new config behind. With the generated `state_dir: ./data`, results live under `~/.beatpick/data/`. Your configuration and state are independent of the development checkout and Homebrew upgrades.
+
+Subsequent `beatpick run` and `beatpick apply` commands discover the saved configuration automatically. A config in the current working directory takes precedence over the personal one. Use `--config /path/to/other.yaml` to select another configuration or `--no-config` to use CLI settings only.
+
+Noninteractive and `--json` calls never start a setup dialogue. Without an existing config, supply `--config`, `--select`, or `--all`; otherwise beatpick exits with actionable instructions and creates no files. For example, a complete CLI selection works without configuration:
+
+```sh
+beatpick run --no-config --media-root ~/Music \
+  --select '{field: genre, equals: Trance}' --no-duplicates
+```
 
 Allow your terminal to control Music when macOS requests Automation access. Audio analysis stays local. The application does not modify audio tempo.
 
@@ -42,18 +59,18 @@ Homebrew installs a versioned release rather than a live development checkout. U
 
 ```sh
 # Analyse and prepare a preview; no Music metadata is changed.
-beatpick run --config ~/.beatpick/config.yaml --write-bpm
+beatpick run --write-bpm
 # Inspect ~/.beatpick/data/delta.json and metadata-plan.json, then apply the same settings.
-beatpick apply --config ~/.beatpick/config.yaml --write-bpm
+beatpick apply --write-bpm
 # Or explicitly combine analysis and application.
-beatpick run --config ~/.beatpick/config.yaml --write-bpm --apply
+beatpick run --write-bpm --apply
 ```
 
 `write_bpm` defaults to false. `duplicates.enabled` defaults to true and independently controls duplicate-comment updates when applying. Set `--no-duplicates` to leave all comments unchanged. Analysis and preview never write Music metadata. The application does not create playlists or edit audio tempo. Metadata writes go through Apple Music; direct ID3 editing is not provided.
 
 ## Configuration
 
-The commented [config.example.yaml](config.example.yaml) explains each setting next to its value. A configuration file is optional: all settings can be supplied through the CLI. Use `--config` explicitly; no configuration is loaded automatically.
+The commented [config.example.yaml](config.example.yaml) explains each setting next to its value. A configuration file is optional: a CLI selection can be supplied directly. Configuration precedence is `--config` (when supplied), otherwise `./config.yaml`, otherwise `~/.beatpick/config.yaml`. CLI values override the selected file. `--no-config` skips discovery and first-run setup; it is mutually exclusive with `--config`. An explicitly supplied missing config is an error, not a request to create one.
 
 ### Configuration reference
 
@@ -68,17 +85,18 @@ All individual settings except the selection have omission defaults. **Optional 
 | `analysis.context_seconds` | Surrounding audio examined for each decision, seconds | `12` | Optional; ≥ 4 and ≥ window size | `--context-seconds` |
 | `analysis.max_track_seconds` | Maximum track duration before skipping, seconds | `720` | Optional; positive; exact limit is allowed | `--max-track-seconds` |
 | `library.media_root` | Folder containing eligible local audio files | `~/Music` | Optional; a non-empty path | `--media-root` |
-| `library.select` | Metadata rules selecting tracks to analyse | None | Required unless using CLI `--select` or explicit `--all` | `--select`, or `--all` with no selector |
+| `library.select` | Metadata rules selecting tracks to analyse | None | Required unless using CLI `--select`, explicit `--all`, or `library.all: true` | `--select` |
+| `library.all` | Explicitly allow all local files beneath the media root when no selector is present | `false` | Optional; boolean; a present selector still restricts the selection | `--all` |
 | `state_dir` | Persistent JSON state and backup folder | `./data` | Optional; a non-empty path | `--state-dir` |
 | `write_bpm` | Allow BPM changes when applying | `false` | Optional; `true` / `false` | `--write-bpm` / `--no-write-bpm` |
 | `duplicates.marker` | Own standalone duplicate-comment line | `beatpick-duplicate` | Optional; non-blank single-line string | `--duplicate-marker` |
 | `duplicates.enabled` | Compare duplicate audio and maintain duplicate comments | `true` | Optional; `true` / `false` | `--duplicates` / `--no-duplicates` |
 
-**Blank / null behavior:** Numeric values, paths, and `duplicates.marker` cannot be blank or `null`. Marker strings must not be whitespace-only or contain line breaks. An omitted or null `library.select` requires explicit `--all` (or a CLI selector). Boolean null values currently act as disabled rather than using the default; use explicit `true` or `false` instead. In particular, `duplicates.enabled: null` disables duplicates, whereas omitting `enabled` defaults to `true`.
+**Blank / null behavior:** Numeric values, paths, and `duplicates.marker` cannot be blank or `null`. Marker strings must not be whitespace-only or contain line breaks. An omitted or null `library.select` requires explicit `--all`, `library.all: true`, or a CLI selector. `library.all` must be a boolean, not blank/null. Boolean null values currently act as disabled rather than using the default; use explicit `true` or `false` instead. In particular, `duplicates.enabled: null` disables duplicates, whereas omitting `enabled` defaults to `true`.
 
 Omitting BPM bounds uses **165–185 BPM**; it does not request unrestricted tempo analysis. There is currently no `analysis.target` block or general-purpose mode for filling every track's BPM field. Only qualifying tracks receive a BPM write value.
 
-CLI values override the explicit YAML configuration, which overrides defaults. Relative YAML paths resolve against the configuration directory; CLI paths resolve against the working directory. The active Music library supplies metadata; `media_root` restricts files to that directory rather than opening another `.musiclibrary`. Duplicate comments are independent of `write_bpm`: applying with BPM writing disabled can still change comments when duplicates are enabled.
+CLI values override the selected YAML configuration, which overrides defaults. Relative YAML paths resolve against the configuration directory; CLI paths resolve against the working directory. The active Music library supplies metadata; `media_root` restricts files to that directory rather than opening another `.musiclibrary`. Duplicate comments are independent of `write_bpm`: applying with BPM writing disabled can still change comments when duplicates are enabled.
 
 ### Counted windows and audio context
 
@@ -133,7 +151,7 @@ library:
             contains: Neon Horizon
 ```
 
-No artist or album filter is built in. A selector or explicit `--all` is required.
+No artist or album filter is built in. A selector or an explicit all-tracks choice is required. First-run setup saves an all-tracks choice as `library.all: true`; it never assumes the whole library by default.
 
 ```sh
 beatpick run --media-root ~/Music --state-dir ./data \
@@ -161,7 +179,7 @@ See Apple's [Sync Library instructions](https://support.apple.com/en-ca/118285) 
 
 The portable [skill/SKILL.md](skill/SKILL.md) lets Codex or Claude Code operate the CLI and explain results. It contains generic instructions, no personal library data. The CLI owns the analysis; no separate model API integration is required by beatpick.
 
-The Homebrew package includes the skill from the same release as the CLI. Prepare your personal `~/.beatpick/config.yaml` first. Use a local agent on the Mac with Music and your audio; cloud sessions do not automatically have access to it.
+The Homebrew package includes the skill from the same release as the CLI. Complete `beatpick run` once in an interactive terminal to create your personal config, or provide your own configuration. Automated agent calls use `--json` and do not start the setup dialogue. Use a local agent on the Mac with Music and your audio; cloud sessions do not automatically have access to it.
 
 ### Install for Codex
 
