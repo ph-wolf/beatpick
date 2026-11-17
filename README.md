@@ -16,26 +16,37 @@ Local audio → beatpick CLI → optional AI skill → Apple Music Smart Playlis
 
 ## Install
 
-Requires macOS, Python 3.11+, Apple Music, `ffmpeg` and `ffprobe` on PATH. Audio analysis stays local. DRM-protected streaming files are not supported.
+Requires macOS and a local Apple Music library with readable audio files. DRM-protected streaming files are not supported. Homebrew installs Python, FFmpeg, and the analysis dependencies; no separate Python environment is needed for everyday use.
 
 ```sh
-brew install ffmpeg uv
-uv tool install .
-cp config.example.yaml config.yaml
-beatpick --help
+brew install ph-wolf/tap/beatpick
+beatpick --version
+mkdir -p ~/.beatpick
+cp "$(brew --prefix beatpick)/share/beatpick/config.example.yaml" ~/.beatpick/config.yaml
 ```
 
-Allow your terminal to control Music when macOS requests Automation access. Edit `config.yaml` to match your actual music; the example artists and albums are fictional. Your personal `config.yaml` and `data/` are ignored by Git.
+Edit `~/.beatpick/config.yaml` to match your actual music; the example artists and albums are fictional. With `state_dir: ./data`, results live under `~/.beatpick/data/`. Your configuration and state are independent of both the development checkout and Homebrew upgrades. Do not overwrite an existing personal config with the example.
+
+Allow your terminal to control Music when macOS requests Automation access. Audio analysis stays local. The application does not modify audio tempo.
+
+To update the CLI and its bundled skill together:
+
+```sh
+brew update
+brew upgrade beatpick
+```
+
+Homebrew installs a versioned release rather than a live development checkout. Uncommitted changes and ordinary pushes do not change your installed version.
 
 ## Quick start
 
 ```sh
 # Analyse and prepare a preview; no Music metadata is changed.
-beatpick run --config config.yaml --write-bpm
-# Inspect data/delta.json and data/metadata-plan.json, then apply the same settings.
-beatpick apply --config config.yaml --write-bpm
+beatpick run --config ~/.beatpick/config.yaml --write-bpm
+# Inspect ~/.beatpick/data/delta.json and metadata-plan.json, then apply the same settings.
+beatpick apply --config ~/.beatpick/config.yaml --write-bpm
 # Or explicitly combine analysis and application.
-beatpick run --config config.yaml --write-bpm --apply
+beatpick run --config ~/.beatpick/config.yaml --write-bpm --apply
 ```
 
 `write_bpm` defaults to false. `duplicates.enabled` defaults to true and independently controls duplicate-comment updates when applying. Set `--no-duplicates` to leave all comments unchanged. Analysis and preview never write Music metadata. The application does not create playlists or edit audio tempo. Metadata writes go through Apple Music; direct ID3 editing is not provided.
@@ -60,9 +71,10 @@ All individual settings except the selection have omission defaults. **Optional 
 | `library.select` | Metadata rules selecting tracks to analyse | None | Required unless using CLI `--select` or explicit `--all` | `--select`, or `--all` with no selector |
 | `state_dir` | Persistent JSON state and backup folder | `./data` | Optional; a non-empty path | `--state-dir` |
 | `write_bpm` | Allow BPM changes when applying | `false` | Optional; `true` / `false` | `--write-bpm` / `--no-write-bpm` |
+| `duplicates.marker` | Own standalone duplicate-comment line | `beatpick-duplicate` | Optional; non-blank single-line string | `--duplicate-marker` |
 | `duplicates.enabled` | Compare duplicate audio and maintain duplicate comments | `true` | Optional; `true` / `false` | `--duplicates` / `--no-duplicates` |
 
-**Blank / null behavior:** Numeric values and paths cannot be blank or `null`. An omitted or null `library.select` requires explicit `--all` (or a CLI selector). Boolean null values currently act as disabled rather than using the default; use explicit `true` or `false` instead. In particular, `duplicates.enabled: null` disables duplicates, whereas omitting `enabled` defaults to `true`.
+**Blank / null behavior:** Numeric values, paths, and `duplicates.marker` cannot be blank or `null`. Marker strings must not be whitespace-only or contain line breaks. An omitted or null `library.select` requires explicit `--all` (or a CLI selector). Boolean null values currently act as disabled rather than using the default; use explicit `true` or `false` instead. In particular, `duplicates.enabled: null` disables duplicates, whereas omitting `enabled` defaults to `true`.
 
 Omitting BPM bounds uses **165–185 BPM**; it does not request unrestricted tempo analysis. There is currently no `analysis.target` block or general-purpose mode for filling every track's BPM field. Only qualifying tracks receive a BPM write value.
 
@@ -136,7 +148,7 @@ beatpick run --media-root ~/Music --state-dir ./data \
 For a 165–185 BPM workout, create a Smart Playlist in Music on your Mac with **all** conditions:
 
 - BPM is in the range 165 to 185.
-- Comment does not contain `beatpick-duplicate`.
+- Comment does not contain your configured duplicate marker (`beatpick-duplicate` by default).
 - Enable live updating.
 
 beatpick writes the rounded median tempo of confirmed target windows, not a global tempo or percentage. It enforces coverage during analysis; Music cannot infer that coverage from BPM alone. Existing BPM values of tracks that stop qualifying are reported but never cleared automatically: review these before relying on a BPM-only playlist.
@@ -149,31 +161,29 @@ See Apple's [Sync Library instructions](https://support.apple.com/en-ca/118285) 
 
 The portable [skill/SKILL.md](skill/SKILL.md) lets Codex or Claude Code operate the CLI and explain results. It contains generic instructions, no personal library data. The CLI owns the analysis; no separate model API integration is required by beatpick.
 
-Install the CLI first and prepare your personal `config.yaml`. Use a local agent session on the Mac that has access to Music and your audio files. A cloud session does not automatically have access to that library.
+The Homebrew package includes the skill from the same release as the CLI. Prepare your personal `~/.beatpick/config.yaml` first. Use a local agent on the Mac with Music and your audio; cloud sessions do not automatically have access to it.
 
 ### Install for Codex
 
-From the root of your beatpick checkout, copy the skill into your personal skills directory:
+Link the bundled skill once:
 
 ```sh
-mkdir -p ~/.agents/skills/beatpick
-cp skill/SKILL.md ~/.agents/skills/beatpick/SKILL.md
+mkdir -p ~/.agents/skills
+ln -s "$(brew --prefix beatpick)/share/beatpick/skill" ~/.agents/skills/beatpick
 ```
 
-Start a new session, then invoke it with `$beatpick`. See the official [Codex skill documentation](https://developers.openai.com/codex/skills).
+Start a new session, then invoke `$beatpick`. See the official [Codex skill documentation](https://developers.openai.com/codex/skills).
 
 ### Install for Claude Code
 
-From the same checkout:
-
 ```sh
-mkdir -p ~/.claude/skills/beatpick
-cp skill/SKILL.md ~/.claude/skills/beatpick/SKILL.md
+mkdir -p ~/.claude/skills
+ln -s "$(brew --prefix beatpick)/share/beatpick/skill" ~/.claude/skills/beatpick
 ```
 
-Start a new session and invoke `/beatpick`. See the official [Claude Code skill documentation](https://code.claude.com/docs/en/skills).
+Start a new session, then invoke `/beatpick`. See the official [Claude Code skill documentation](https://code.claude.com/docs/en/skills).
 
-These commands copy the skill; repeat the copy after updating the repository. They replace an existing skill with the same name, so preserve any custom version first. Installing the skill does not install the CLI or change your configuration. No `AGENTS.md` or `CLAUDE.md` is needed.
+These links use Homebrew's stable `opt` path, so `brew upgrade beatpick` updates both CLI and skill without relinking. If the destination already exists, inspect and preserve any custom skill before replacing it. Homebrew does not create links inside your agent configuration automatically. No `AGENTS.md` or `CLAUDE.md` is needed. The skill uses an explicitly supplied config, otherwise checks `config.yaml` in the working directory and then `~/.beatpick/config.yaml`.
 
 ### Example prompts
 
@@ -221,7 +231,7 @@ Defaults preserve the original v6 method: 4-second weighted windows with 12-seco
 
 The configurable BPM range is limited to 90–200; this is a technical boundary, not a guarantee of reliable detection for every genre. Context must be at least four seconds and at least as long as the window. Tracks longer than the configured maximum (720 seconds by default) are skipped before decoding. Decodable audio shorter than 12 seconds is rejected. Estimates can confuse rhythmic bass figures with the beat: inspect ambiguous results and do not treat percentages as ground truth.
 
-Duplicates require conservative version compatibility, at least 97% shared duration, waveform correlation ≥0.94 overall and ≥0.90 in every quarter. All pairs within a group must agree. The highest target percentage wins; persistent ID breaks ties. Other qualifying copies receive a standalone `beatpick-duplicate` comment line. Unrelated comment text is preserved.
+Duplicates require conservative version compatibility, at least 97% shared duration, waveform correlation ≥0.94 overall and ≥0.90 in every quarter. All pairs within a group must agree. The highest target percentage wins; persistent ID breaks ties. Other qualifying copies receive a standalone comment line configured by `duplicates.marker` (default `beatpick-duplicate`). Do not change this value after applying it without migrating existing managed markers and updating the playlist rule. The CLI rejects marker changes when the confirmed state still tracks managed entries. Unrelated comment text is preserved.
 
 ## State, recovery and migration
 
@@ -239,7 +249,10 @@ Before applying, beatpick checks configuration, analysis hash, file signatures, 
 
 ## Development
 
+Work on the CLI and `skill/SKILL.md` in the development checkout. `uv` is a development dependency only:
+
 ```sh
+brew install uv
 uv sync
 uv run python -m unittest discover -s tests -v
 uv run python -m compileall -q beatpick
@@ -248,3 +261,16 @@ uv run python -m compileall -q beatpick
 Tests use synthetic audio and simulated Music calls; they do not modify your Music library. Audio and personal state must never be committed.
 
 Licensed under [MIT](LICENSE).
+
+## Releases and versioning
+
+The central version is `[project].version` in `pyproject.toml`. `beatpick --version` reads installed package metadata; the bundled skill shares that version.
+
+Use `MAJOR.MINOR.PATCH`: fixes increment PATCH, new features MINOR, and incompatible stable changes MAJOR. During `0.x`, document incompatible changes explicitly. A release is a deliberate step, separate from everyday commits and pushes:
+
+1. Update `pyproject.toml`, refresh `uv.lock`, run tests and inspect the public diff.
+2. Commit and create the corresponding `vX.Y.Z` tag and GitHub Release. Include a source archive containing the CLI, skill, and example configuration.
+3. Update `Formula/beatpick.rb` in [ph-wolf/homebrew-tap](https://github.com/ph-wolf/homebrew-tap) with the release asset URL and SHA-256; test installation and `brew test` before publishing the formula change.
+4. Users run `brew update` and `brew upgrade beatpick` when ready.
+
+For local development, use `uv run beatpick ...` inside the checkout. Use the plain installed `beatpick` command for normal operation. Tests and development previews should use a separate `--state-dir` so experiments do not overwrite everyday state.

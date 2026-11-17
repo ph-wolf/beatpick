@@ -1,5 +1,6 @@
 """Configuration and command-line orchestration."""
 import argparse
+from importlib.metadata import version
 import contextlib
 import fcntl
 import hashlib
@@ -48,11 +49,12 @@ def path(value, base):
 
 def main():
     parser = argparse.ArgumentParser(description='Select Apple Music tracks by audio tempo coverage.')
+    parser.add_argument('--version', action='version', version='beatpick ' + version('beatpick'))
     parser.add_argument('command', choices=['run', 'apply'])
     parser.add_argument('--config', type=Path)
     for key in VALUES:
         parser.add_argument('--' + key.replace('_', '-'), type=float)
-    for key in ('state-dir', 'media-root', 'select'):
+    for key in ('state-dir', 'media-root', 'select', 'duplicate-marker'):
         parser.add_argument('--' + key)
     for key in ('write-bpm', 'duplicates'):
         parser.add_argument('--' + key, action=argparse.BooleanOptionalAction, default=None)
@@ -82,7 +84,8 @@ def main():
             matches(rule, {})
         write = args.write_bpm if args.write_bpm is not None else config.get('write_bpm', False)
         duplicates = args.duplicates if args.duplicates is not None else config.get('duplicates', {}).get('enabled', True)
-        effective = dict(analysis=VALUES, root=str(root), select=rule, write_bpm=write, duplicates=duplicates)
+        marker = metadata.validate_marker(args.duplicate_marker if args.duplicate_marker is not None else config.get('duplicates', {}).get('marker', metadata.MARKER))
+        effective = dict(marker=marker, analysis=VALUES, root=str(root), select=rule, write_bpm=write, duplicates=duplicates)
         signature = hashlib.sha256(json.dumps(effective, sort_keys=True).encode()).hexdigest()
         with (state / '.lock').open('w') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -104,7 +107,7 @@ def main():
                 finally:
                     sys.argv = old
                     refresh.inventory = old_inventory
-                result = metadata.plan(state, write, duplicates)
+                result = metadata.plan(state, write, duplicates, marker)
                 result['config_signature'] = signature
                 refresh.write_json(state / 'metadata-plan.json', result)
             if args.command == 'apply' or args.apply:

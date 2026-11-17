@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 [project]
 name = "beatpick"
-version = "0.1.0"
+version = "0.2.0"
 description = "Select Apple Music tracks by confirmed tempo coverage"
 requires-python = ">=3.11"
 dependencies = ["numpy", "scipy", "PyYAML"]

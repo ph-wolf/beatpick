@@ -10,7 +10,7 @@ Use the installed `beatpick` CLI as the source of analysis and metadata decision
 ## Configure and preview
 
 - Requires a local Mac with Apple Music, readable local audio, FFmpeg, and the installed CLI. A remote agent without access to that Mac cannot operate its library.
-- Locate the configuration explicitly provided by the user. Otherwise check for `config.yaml` in the working directory; ask for its location if absent. Do not substitute the fictional example configuration for personal settings.
+- Locate the configuration explicitly provided by the user. Otherwise check for `config.yaml` in the working directory, then `~/.beatpick/config.yaml`; ask for its location if neither exists. Do not substitute the fictional example configuration for personal settings.
 - Inspect `beatpick --help` and the configuration before constructing commands. Resolve the config to an absolute path so later commands use the same file. CLI overrides take precedence over YAML.
 - Preserve the requested selection and parameters. Do not broaden selection to `--all` unless requested. For a one-off change, use CLI overrides rather than modifying the configuration unless asked.
 - Run `beatpick run --config /path/to/config.yaml --json` with any requested overrides. This writes local analysis and preview files, but no Music metadata.
@@ -27,8 +27,10 @@ First generate and inspect the preview with the intended settings, then run `bea
 
 Report verified changes and any remaining errors. If application partially fails, inspect the backup and actual state and explain the failure. Do not blindly retry an old plan; prepare a fresh preview and stop if the same failure recurs.
 
+Use the configured duplicate marker; do not rename existing markers without an explicit migration.
+
 ## Boundaries
 
-Do not create playlists or claim to sync devices: beatpick only analyses and optionally writes Music metadata. Explain how the user can create a Smart Playlist from the configured BPM range and exclude `beatpick-duplicate` comments. Mention that stale BPM values on tracks that no longer qualify are not automatically cleared.
+Do not create playlists or claim to sync devices: beatpick only analyses and optionally writes Music metadata. Explain how the user can create a Smart Playlist from the configured BPM range and exclude the configured `duplicates.marker` comment line (default `beatpick-duplicate`). Mention that stale BPM values on tracks that no longer qualify are not automatically cleared.
 
 Keep personal configurations, audio, paths, inventory exports, and state out of commits and uploads. This skill ships no personal library data and needs no model API key; it uses the local CLI through the user's chosen agent.

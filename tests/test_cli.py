@@ -29,7 +29,7 @@ class ConfigurationTests(unittest.TestCase):
             rows = [dict(path=str(root / 'song.mp3'), genre='Trance')]
             with patch('sys.argv', ['beatpick', 'run', '--config', str(config), '--no-write-bpm']), patch.object(cli.subprocess, 'check_output', return_value=json.dumps(rows)), patch.object(cli.refresh, 'main'), patch.object(cli.metadata, 'plan', return_value={'rows': []}) as plan, patch.object(cli.metadata, 'apply') as apply:
                 cli.main()
-                plan.assert_called_once_with(root.resolve() / 'data', False, True)
+                plan.assert_called_once_with(root.resolve() / 'data', False, True, 'beatpick-duplicate')
                 apply.assert_not_called()
                 self.assertTrue((root / 'data/metadata-plan.json').exists())
 

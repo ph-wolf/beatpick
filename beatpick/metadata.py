@@ -12,12 +12,19 @@ MARKER = 'beatpick-duplicate'
 HERE = Path(__file__).parent
 
 
-def comment_value(comment, duplicate):
+def validate_marker(marker):
+    if not isinstance(marker, str) or not marker.strip() or any(c in marker for c in ('\n', '\r')):
+        raise ValueError('Duplicate marker must be a non-empty single line')
+    return marker
+
+
+def comment_value(comment, duplicate, marker=MARKER):
+    validate_marker(marker)
     # Own a standalone line only, preserve all other comment text exactly.
     lines = comment.splitlines(keepends=True)
-    clean = ''.join(line for line in lines if line.rstrip('\r\n') != MARKER)
+    clean = ''.join(line for line in lines if line.rstrip('\r\n') != marker)
     if duplicate:
-        return clean + ('' if not clean or clean.endswith(('\n', '\r')) else '\n') + MARKER
+        return clean + ('' if not clean or clean.endswith(('\n', '\r')) else '\n') + marker
     return clean
 
 
@@ -42,7 +49,8 @@ def load_pending(state):
     return pending
 
 
-def plan(state, write_bpm=True, duplicates_enabled=True):
+def plan(state, write_bpm=True, duplicates_enabled=True, marker=MARKER):
+    validate_marker(marker)
     (state/'metadata-plan.json').unlink(missing_ok=True)
     pending = load_pending(state)
     source_hash = sha(state/'pending.json')
@@ -55,6 +63,8 @@ def plan(state, write_bpm=True, duplicates_enabled=True):
     duplicates = {r['persistent_id'] for r in hits} - winners
     previous = json.loads((state/'committed.json').read_text()) if (state/'committed.json').exists() else {}
     managed = set(previous.get('managed_comment_ids', []))
+    if duplicates_enabled and managed and previous.get('duplicate_marker', MARKER) != marker:
+        raise ValueError('Duplicate marker changed; migrate managed comment lines before changing it')
     # Include previous managed IDs to remove a stale marker after selection changes.
     rows = [r for r in pending['rows'] if r.get('passes') or r['persistent_id'] in managed]
     live = music('inspect', rows, state) if rows else {}
@@ -64,12 +74,12 @@ def plan(state, write_bpm=True, duplicates_enabled=True):
         after = {key: before[key] for key in ('bpm', 'comment')}
         if write_bpm and row.get('passes'):
             after['bpm'] = int(Decimal(str(row['bpm'])).quantize(Decimal('1'), rounding=ROUND_HALF_UP))
-        after['comment'] = comment_value(before['comment'], row['persistent_id'] in duplicates) if duplicates_enabled else before['comment']
+        after['comment'] = comment_value(before['comment'], row['persistent_id'] in duplicates, marker) if duplicates_enabled else before['comment']
         changes.append(dict(row, before=before, after=after,
                             file_signature=identity(row) if not row.get('skipped') else None))
     if sha(state/'pending.json') != source_hash:
         raise ValueError('Analysis changed during planning')
-    data = dict(source_sha256=source_hash, rows=changes, duplicate_ids=sorted(duplicates),
+    data = dict(duplicate_marker=marker, duplicates_enabled=duplicates_enabled, source_sha256=source_hash, rows=changes, duplicate_ids=sorted(duplicates),
                 selected_ids=sorted(winners), groups=[[r['persistent_id'] for r in g] for g in groups if len(g)>1],
                 evidence=evidence, previous_managed_ids=sorted(managed))
     write_json(state/'metadata-plan.json', data)
@@ -102,7 +112,9 @@ def apply(state):
     write_json(state/'metadata-last-success.json', receipt)
     # Keep vanished IDs managed so their marker can be cleaned if they reappear.
     present = {r['persistent_id'] for r in pending['rows']}
-    pending['managed_comment_ids'] = sorted(set(data['duplicate_ids']) | (set(data['previous_managed_ids'])-present))
+    pending['duplicate_marker'] = data.get('duplicate_marker', MARKER)
+    pending['managed_comment_ids'] = (sorted(set(data['duplicate_ids']) | (set(data['previous_managed_ids'])-present))
+                                      if data.get('duplicates_enabled', True) else data['previous_managed_ids'])
     write_json(state/'committed.json', pending)
     return receipt
 

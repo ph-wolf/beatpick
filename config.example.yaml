@@ -75,3 +75,8 @@ duplicates:
   # Enables audio duplicate comparison and comment maintenance during apply.
   # false leaves ALL existing comments unchanged; it does not remove old markers.
   enabled: true
+
+  # Optional; default beatpick-duplicate. Blank/null and line breaks are invalid.
+  # Own standalone comment line; all unrelated text is preserved.
+  # Keep stable once applied. Changing it requires migrating old managed markers.
+  marker: beatpick-duplicate

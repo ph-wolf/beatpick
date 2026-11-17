@@ -93,3 +93,38 @@ class MetadataTests(unittest.TestCase):
             self.assertFalse((root/'metadata-plan.json').exists())
 
 if __name__=='__main__':unittest.main()
+
+class ConfigurableMarkerTests(unittest.TestCase):
+    def test_custom_marker_owns_only_its_line(self):
+        original = 'First\r\nexample-marker\r\nOther example-marker text\n'
+        self.assertEqual(m.comment_value(original, False, 'example-marker'), 'First\r\nOther example-marker text\n')
+        marked = m.comment_value('Note', True, 'example-marker')
+        self.assertEqual(marked, 'Note\nexample-marker')
+        self.assertEqual(m.comment_value(marked, True, 'example-marker'), marked)
+        self.assertEqual(m.comment_value('beatpick-duplicate', False, 'example-marker'), 'beatpick-duplicate')
+
+    def test_invalid_marker(self):
+        for marker in ('', '  ', None, 'a\nb', 'a\rb'):
+            with self.subTest(marker=marker), self.assertRaises(ValueError):
+                m.validate_marker(marker)
+
+    def test_disabled_duplicates_preserve_managed_ids(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            rows,live=MetadataTests().fixture(root)
+            write_json(root/'committed.json',dict(rows=rows,managed_comment_ids=['AAAAAAAAAAAAAAAA']))
+            with patch.object(m,'music',return_value=live), patch.object(m,'group_recordings') as groups:
+                data=m.plan(root, False, False)
+                groups.assert_not_called()
+            self.assertTrue(all(r['before']['comment']==r['after']['comment'] for r in data['rows']))
+            with patch.object(m,'music',return_value=live):
+                m.apply(root)
+            self.assertEqual(json.loads((root/'committed.json').read_text())['managed_comment_ids'], ['AAAAAAAAAAAAAAAA'])
+
+    def test_marker_change_requires_migration(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            rows,live=MetadataTests().fixture(root)
+            write_json(root/'committed.json',dict(rows=rows,managed_comment_ids=['AAAAAAAAAAAAAAAA'],duplicate_marker='old-example'))
+            with patch.object(m,'group_recordings',return_value=([[r] for r in rows],[])), self.assertRaisesRegex(ValueError,'marker changed'):
+                m.plan(root, marker='new-example')
