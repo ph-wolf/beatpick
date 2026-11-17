@@ -79,7 +79,7 @@ def plan(state, write_bpm=True, duplicates_enabled=True, marker=MARKER):
                             file_signature=identity(row) if not row.get('skipped') else None))
     if sha(state/'pending.json') != source_hash:
         raise ValueError('Analysis changed during planning')
-    data = dict(duplicate_marker=marker, duplicates_enabled=duplicates_enabled, source_sha256=source_hash, rows=changes, duplicate_ids=sorted(duplicates),
+    data = dict(previous_duplicate_marker=previous.get('duplicate_marker', MARKER), duplicate_marker=marker, duplicates_enabled=duplicates_enabled, source_sha256=source_hash, rows=changes, duplicate_ids=sorted(duplicates),
                 selected_ids=sorted(winners), groups=[[r['persistent_id'] for r in g] for g in groups if len(g)>1],
                 evidence=evidence, previous_managed_ids=sorted(managed))
     write_json(state/'metadata-plan.json', data)
@@ -112,7 +112,8 @@ def apply(state):
     write_json(state/'metadata-last-success.json', receipt)
     # Keep vanished IDs managed so their marker can be cleaned if they reappear.
     present = {r['persistent_id'] for r in pending['rows']}
-    pending['duplicate_marker'] = data.get('duplicate_marker', MARKER)
+    pending['duplicate_marker'] = (data.get('duplicate_marker', MARKER) if data.get('duplicates_enabled', True)
+                                   else data.get('previous_duplicate_marker', MARKER))
     pending['managed_comment_ids'] = (sorted(set(data['duplicate_ids']) | (set(data['previous_managed_ids'])-present))
                                       if data.get('duplicates_enabled', True) else data['previous_managed_ids'])
     write_json(state/'committed.json', pending)

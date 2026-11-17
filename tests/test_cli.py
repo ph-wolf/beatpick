@@ -12,6 +12,15 @@ class ConfigurationTests(unittest.TestCase):
     def tearDown(self):
         cli.audio_io.SCRATCH_DIR = None
 
+    def test_version_without_command(self):
+        from importlib.metadata import version
+        from io import StringIO
+        with patch('sys.argv', ['beatpick', '--version']), patch('sys.stdout', new_callable=StringIO) as output:
+            with self.assertRaises(SystemExit) as result:
+                cli.main()
+            self.assertEqual(result.exception.code, 0)
+            self.assertEqual(output.getvalue().strip(), 'beatpick ' + version('beatpick'))
+
     def test_nested_filter(self):
         rule = {'all': [{'field': 'genre', 'equals': 'Trance'}, {'not': {'field': 'album', 'contains': 'Live'}}]}
         self.assertTrue(cli.matches(rule, dict(genre='TRANCE', album='Neon Horizon')))

@@ -112,7 +112,7 @@ class ConfigurableMarkerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp)
             rows,live=MetadataTests().fixture(root)
-            write_json(root/'committed.json',dict(rows=rows,managed_comment_ids=['AAAAAAAAAAAAAAAA']))
+            write_json(root/'committed.json',dict(rows=rows,managed_comment_ids=['AAAAAAAAAAAAAAAA'],duplicate_marker='previous-marker'))
             with patch.object(m,'music',return_value=live), patch.object(m,'group_recordings') as groups:
                 data=m.plan(root, False, False)
                 groups.assert_not_called()
@@ -120,6 +120,7 @@ class ConfigurableMarkerTests(unittest.TestCase):
             with patch.object(m,'music',return_value=live):
                 m.apply(root)
             self.assertEqual(json.loads((root/'committed.json').read_text())['managed_comment_ids'], ['AAAAAAAAAAAAAAAA'])
+            self.assertEqual(json.loads((root/'committed.json').read_text())['duplicate_marker'], 'previous-marker')
 
     def test_marker_change_requires_migration(self):
         with tempfile.TemporaryDirectory() as tmp:
