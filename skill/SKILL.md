@@ -1,6 +1,6 @@
 ---
 name: beatpick
-description: Use the beatpick CLI to analyse local Apple Music tracks by tempo coverage, explain previews, and apply requested BPM or audio-duplicate metadata updates.
+description: Use the beatpick CLI to analyse local Apple Music tracks by tempo coverage, explain previews, and apply requested BPM or audio-duplicate metadata updates. Use when the user asks for songs or tracks in a BPM or tempo range (for example for running, jogging, cycling or workout playlists), wants BPM values written to Apple Music, or wants audio duplicates found or marked in their Music library; also for German requests such as "Songs mit 160 BPM", "Lauf-Playlist", "Tempo analysieren", "BPM eintragen" or "Duplikate markieren".
 ---
 
 # beatpick
@@ -10,7 +10,7 @@ Use the installed `beatpick` CLI as the source of analysis and metadata decision
 ## Configure and preview
 
 - Requires a local Mac with Apple Music, readable local audio, FFmpeg, and the installed CLI. A remote agent without access to that Mac cannot operate its library.
-- Locate the configuration explicitly provided by the user. Otherwise check for `config.yaml` in the working directory, then `~/.beatpick/config.yaml`; if neither exists, ask for its location or guide the user through an interactive `beatpick run` on their Mac. Version 0.2.1 can create a personal config and continue analysis in that interactive run; automated `--json` calls never start the dialogue. Do not substitute the fictional example configuration for personal settings.
+- Locate the configuration explicitly provided by the user. Otherwise check for `config.yaml` in the working directory, then `~/.beatpick/config.yaml`; if neither exists, ask for its location or guide the user through an interactive `beatpick run` on their Mac, which creates a personal config and continues with analysis; automated `--json` calls never start the dialogue. Do not substitute the fictional example configuration for personal settings.
 - Inspect `beatpick --help` and the configuration before constructing commands. Resolve the config to an absolute path so later commands use the same file. CLI overrides take precedence over YAML.
 - Preserve the requested selection and parameters. Do not broaden selection to `--all` unless requested. For a one-off change, use CLI overrides rather than modifying the configuration unless asked.
 - Run `beatpick run --config /path/to/config.yaml --json` with any requested overrides. This writes local analysis and preview files, but no Music metadata.
